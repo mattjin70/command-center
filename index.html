@@ -268,7 +268,23 @@ async function loadTasks() {
 }
 
 // Initialize
-renderSignInButton();
+window.onload = () => {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: (resp) => {
+      if (resp.error) {
+        renderSignInButton();
+        return;
+      }
+      oauthToken = resp.access_token;
+      loadTasks();
+    }
+  });
+
+  // Try silent token refresh
+  tokenClient.requestAccessToken({ prompt: '' });
+};
 </script>
 
 </body>
