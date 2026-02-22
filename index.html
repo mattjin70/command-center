@@ -4,16 +4,74 @@
 <meta charset="UTF-8">
 <title>Matt Command Center</title>
 <style>
-  body { margin:0; background:#000; color:white; font-family:-apple-system,BlinkMacSystemFont,sans-serif; }
-  .grid { display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(2,1fr); height:100vh; gap:8px; padding:8px; }
-  .tile { background:#111; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:1.5em; text-align:center; border-radius:12px; cursor:pointer; transition:background 0.2s; padding:10px; overflow:hidden; }
-  .tile:hover { background:#222; }
-  a { color:white; text-decoration:none; width:100%; display:block; }
-  .personal { background:#1a1a2e; }
-  ul { margin:4px 0 0 0; padding-left:0; font-size:0.9em; list-style:none; width:100%; }
-  li { display:flex; align-items:center; justify-content:flex-start; margin-bottom:6px; }
-  input[type="text"] { flex:1; padding:4px 6px; font-size:0.9em; border-radius:4px; border:none; }
-  button { padding:4px 6px; font-size:0.8em; margin-left:6px; border-radius:4px; border:none; cursor:pointer; }
+  body {
+    margin: 0;
+    background: #000;
+    color: white;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    height: 100vh;
+    gap: 8px;
+    padding: 8px;
+  }
+  .tile {
+    background: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5em;
+    text-align: center;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+    padding: 10px;
+    overflow: hidden;
+  }
+  .tile:hover {
+    background: #222;
+  }
+  a {
+    color: white;
+    text-decoration: none;
+    width: 100%;
+    display: block;
+  }
+  .personal {
+    background: #1a1a2e;
+  }
+  ul {
+    margin: 4px 0 0 0;
+    padding-left: 0;
+    font-size: 0.9em;
+    list-style: none;
+    width: 100%;
+  }
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    margin-bottom: 6px;
+  }
+  input[type="text"] {
+    flex: 1;
+    padding: 4px 6px;
+    font-size: 0.9em;
+    border-radius: 4px;
+    border: none;
+  }
+  button {
+    padding: 4px 6px;
+    font-size: 0.8em;
+    margin-left: 6px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -21,31 +79,49 @@
 <div class="grid">
 
   <!-- Work Tiles -->
-  <div class="tile"><a href="https://outlook.office.com/mail/" target="_blank">Outlook</a></div>
-  <div class="tile"><a href="https://app.slack.com/" target="_blank">Slack</a></div>
-  <div class="tile"><a href="https://www.icloud.com/reminders/" target="_blank">Reminders</a></div>
+  <div class="tile">
+    <a href="https://outlook.office.com/mail/" target="_blank">Outlook</a>
+  </div>
+
+  <div class="tile">
+    <a href="https://app.slack.com/" target="_blank">Slack</a>
+  </div>
+
+  <div class="tile">
+    <a href="https://www.icloud.com/reminders/" target="_blank">Reminders</a>
+  </div>
 
   <!-- Personal Tiles -->
   <div class="tile personal" id="google-tasks-tile" style="align-items:flex-start; justify-content:flex-start; padding:10px;">
+    <!-- Header clickable only -->
     <a href="https://tasks.google.com/" target="_blank">
       <h2 style="margin:0; padding:0; line-height:1.2;">Google Tasks</h2>
     </a>
     <ul id="tasks-list"></ul>
   </div>
 
-  <div class="tile personal"><a href="https://chat.openai.com/" target="_blank">ChatGPT</a></div>
-  <div class="tile personal"><a href="https://publish.obsidian.md/YourVaultName/" target="_blank">Obsidian</a></div>
+  <div class="tile personal">
+    <a href="https://chat.openai.com/" target="_blank">ChatGPT</a>
+  </div>
+
+  <div class="tile personal">
+    <a href="https://publish.obsidian.md/YourVaultName/" target="_blank">Obsidian</a>
+  </div>
 
 </div>
 
+<!-- Google OAuth -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <script>
 const CLIENT_ID = '903590667874-gln8c4dq5m9if43o6879fqofqqh3smiu.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/tasks';
 const WORKER_URL = 'https://square-resonance-3fdb.mattjin70.workers.dev/tasks/@default/tasks';
-let tokenClient, oauthToken;
 
+let tokenClient;
+let oauthToken;
+
+// Render Sign-In button in Tasks tile
 function renderSignInButton() {
   const tasksList = document.getElementById('tasks-list');
   tasksList.innerHTML = '';
@@ -55,6 +131,7 @@ function renderSignInButton() {
   tasksList.appendChild(btn);
 }
 
+// Handle OAuth sign-in
 function handleAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
@@ -68,71 +145,113 @@ function handleAuth() {
   tokenClient.requestAccessToken();
 }
 
+// Load tasks via Cloudflare Worker
 async function loadTasks() {
   const tasksList = document.getElementById('tasks-list');
   tasksList.innerHTML = '';
 
-  // Input
+  // Input for new task
   const inputLi = document.createElement('li');
   const input = document.createElement('input');
   input.type = 'text';
   input.placeholder = 'New task…';
+
   const addBtn = document.createElement('button');
   addBtn.textContent = 'Add';
   addBtn.onclick = async () => {
     if (!input.value.trim()) return;
     await fetch(WORKER_URL, {
-      method:'POST',
-      headers: {'Content-Type':'application/json','Authorization':`Bearer ${oauthToken}`},
-      body: JSON.stringify({title: input.value})
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${oauthToken}`
+      },
+      body: JSON.stringify({ title: input.value })
     });
-    input.value='';
+    input.value = '';
     loadTasks();
   };
+
   inputLi.appendChild(input);
   inputLi.appendChild(addBtn);
   tasksList.appendChild(inputLi);
 
   // Fetch tasks
-  const response = await fetch(WORKER_URL, {
-    headers: {'Authorization':`Bearer ${oauthToken}`}
-  });
-  const data = await response.json();
-  const tasks = data.items||[];
+  let response;
+  try {
+    response = await fetch(WORKER_URL, {
+      headers: { 'Authorization': `Bearer ${oauthToken}` }
+    });
+  } catch (e) {
+    const li = document.createElement('li');
+    li.textContent = 'Error loading tasks';
+    tasksList.appendChild(li);
+    return;
+  }
 
-  if(tasks.length===0){
-    const li=document.createElement('li'); li.textContent='No active tasks 🎉'; tasksList.appendChild(li); return;
+  if (!response.ok) {
+    const li = document.createElement('li');
+    li.textContent = `Error ${response.status}`;
+    tasksList.appendChild(li);
+    return;
+  }
+
+  const data = await response.json();
+  const tasks = data.items || [];
+
+  if (tasks.length === 0) {
+    const li = document.createElement('li');
+    li.textContent = 'No active tasks 🎉';
+    tasksList.appendChild(li);
+    return;
   }
 
   // Render tasks
-  tasks.forEach(task=>{
-    const li=document.createElement('li');
-    const checkbox=document.createElement('input');
-    checkbox.type='checkbox';
-    checkbox.onclick=async()=>{
-      await fetch(`${WORKER_URL}/${task.id}`,{
-        method:'PATCH',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${oauthToken}`},
-        body:JSON.stringify({id:task.id,status:'completed'})
+  tasks.forEach(task => {
+    const li = document.createElement('li');
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.onclick = async () => {
+      await fetch(WORKER_URL, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${oauthToken}`
+        },
+        body: JSON.stringify({ id: task.id, status: 'completed' })
       });
       loadTasks();
     };
-    const span=document.createElement('span'); span.textContent=task.title; span.style.marginLeft='8px';
-    const delBtn=document.createElement('button'); delBtn.textContent='Delete';
-    delBtn.onclick=async()=>{
-      await fetch(`${WORKER_URL}/${task.id}`,{
-        method:'DELETE',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${oauthToken}`},
-        body:JSON.stringify({id:task.id})
+
+    const span = document.createElement('span');
+    span.textContent = task.title;
+    span.style.marginLeft = '8px';
+
+    const delBtn = document.createElement('button');
+    delBtn.textContent = 'Delete';
+    delBtn.onclick = async () => {
+      await fetch(WORKER_URL, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${oauthToken}`
+        },
+        body: JSON.stringify({ id: task.id })
       });
       loadTasks();
     };
-    li.appendChild(checkbox); li.appendChild(span); li.appendChild(delBtn);
+
+    li.appendChild(checkbox);
+    li.appendChild(span);
+    li.appendChild(delBtn);
     tasksList.appendChild(li);
   });
 }
 
+// Initialize
 renderSignInButton();
 </script>
+
 </body>
 </html>
