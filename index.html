@@ -133,17 +133,20 @@ const SCOPES = 'https://www.googleapis.com/auth/tasks';
 
 let tokenClient;
 
-// Load GAPI
-gapi.load('client', async () => {
+// Wait for window to fully load
+window.onload = function () {
+  gapi.load('client', initializeGapiClient);
+};
+
+async function initializeGapiClient() {
   await gapi.client.init({
     apiKey: API_KEY,
     discoveryDocs: [DISCOVERY_DOC],
   });
 
   renderSignInButton();
-});
+}
 
-// Always show Sign-In button first
 function renderSignInButton() {
   const tasksList = document.getElementById('tasks-list');
   tasksList.innerHTML = '';
@@ -155,7 +158,6 @@ function renderSignInButton() {
   tasksList.appendChild(btn);
 }
 
-// Handle Auth
 function handleAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
@@ -170,7 +172,6 @@ function handleAuth() {
   tokenClient.requestAccessToken();
 }
 
-// Load Tasks
 async function loadTasks() {
   const response = await gapi.client.tasks.tasks.list({
     tasklist: '@default',
@@ -182,7 +183,6 @@ async function loadTasks() {
   const tasksList = document.getElementById('tasks-list');
   tasksList.innerHTML = '';
 
-  // Add Task Input
   const inputLi = document.createElement('li');
   const input = document.createElement('input');
   input.type = 'text';
@@ -206,7 +206,6 @@ async function loadTasks() {
   inputLi.appendChild(addBtn);
   tasksList.appendChild(inputLi);
 
-  // Existing Tasks
   tasks.forEach(task => {
     const li = document.createElement('li');
 
