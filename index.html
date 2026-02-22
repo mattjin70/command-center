@@ -166,19 +166,15 @@ async function initializeGapiClient() {
 // 3️⃣ OAuth login
 function handleAuth(callbackAfterAuth = null) {
   tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID,
-    scope: SCOPES,
-    prompt: '', // silent if possible
-    callback: (response) => {
-      if (response.error) {
-        console.error(response);
-        return;
-      }
-      gapi.client.setToken(response);
-      if (callbackAfterAuth) callbackAfterAuth();
-    },
-  });
-  tokenClient.requestAccessToken();
+  client_id: CLIENT_ID,
+  scope: SCOPES,
+  prompt: 'consent', // forces user to pick account first time
+  callback: (response) => {
+    gapi.client.setToken(response);
+    loadTasks();
+  }
+});
+tokenClient.requestAccessToken();
 }
 
 // 4️⃣ CRUD functions
