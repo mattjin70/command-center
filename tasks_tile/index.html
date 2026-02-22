@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Google Auth Test</title>
+  <style>
+    body {
+      background: #000;
+      color: white;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      flex-direction: column;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1em;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Google Sign-In Test</h1>
+<div id="signin-container"></div>
+
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<script>
+const CLIENT_ID = '903590667874-gln8c4dq5m9if43o6879fqofqqh3smiu.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/tasks';
+
+let tokenClient;
+
+function gapiLoaded() {
+  gapi.load('client', () => console.log("GAPI client loaded"));
+}
+
+function handleAuth() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    prompt: 'consent',
+    callback: (resp) => {
+      console.log("Access token response:", resp);
+      alert("Sign-in success! Check console for token.");
+    }
+  });
+  tokenClient.requestAccessToken();
+}
+
+// Create a button manually to test
+const container = document.getElementById('signin-container');
+const btn = document.createElement('button');
+btn.innerText = "Sign in with Google";
+btn.onclick = handleAuth;
+container.appendChild(btn);
+
+gapiLoaded();
+</script>
+
+</body>
+</html>
