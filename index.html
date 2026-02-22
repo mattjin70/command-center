@@ -81,6 +81,7 @@
     border: none;
     cursor: pointer;
   }
+
 </style>
 </head>
 <body>
@@ -106,8 +107,6 @@
     <a href="https://tasks.google.com/" target="_blank">
       <h2 style="margin:0; padding:0; line-height:1.2;">Google Tasks</h2>
     </a>
-
-    <!-- Task input and list -->
     <ul id="tasks-list"></ul>
   </div>
 
@@ -121,75 +120,73 @@
 
 </div>
 
-<script src="https://apis.google.com/js/api.js"></script>
+<!-- Google API for OAuth -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <script>
-const WORKER_URL = 'square-resonance-3fdb.mattjin70.workers.dev'; // <-- drop your deployed Worker URL here
+const CLIENT_ID = '903590667874-gln8c4dq5m9if43o6879fqofqqh3smiu.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/tasks';
+let tokenClient;
+let oauthToken;
 
-// Load GAPI
-gapi.load('client', async () => {
-  await gapi.client.init({}); // No API key in client now
-  renderSignInButton();
-});
-
-// Always show Sign-In button first
+// Render Sign-In button first
 function renderSignInButton() {
   const tasksList = document.getElementById('tasks-list');
   tasksList.innerHTML = '';
-
   const btn = document.createElement('button');
   btn.textContent = 'Sign in to load tasks';
   btn.onclick = handleAuth;
-
   tasksList.appendChild(btn);
 }
 
-// Handle Auth via Google Identity Services
-let tokenClient;
+// Handle OAuth sign-in
 function handleAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: '903590667874-gln8c4dq5m9if43o6879fqofqqh3smiu.apps.googleusercontent.com', 
-    scope: 'https://www.googleapis.com/auth/tasks',
+    client_id: CLIENT_ID,
+    scope: SCOPES,
     prompt: 'consent',
-    callback: async (resp) => {
+    callback: (resp) => {
+      oauthToken = resp.access_token;
       loadTasks();
     }
   });
   tokenClient.requestAccessToken();
 }
 
-// Load Tasks through Worker proxy
+// Load tasks from Cloudflare Worker
 async function loadTasks() {
   const tasksList = document.getElementById('tasks-list');
   tasksList.innerHTML = '';
 
-  // Task input
+  // Input for new task
   const inputLi = document.createElement('li');
   const input = document.createElement('input');
   input.type = 'text';
   input.placeholder = 'New task…';
-
   const addBtn = document.createElement('button');
   addBtn.textContent = 'Add';
   addBtn.onclick = async () => {
     if (!input.value.trim()) return;
-    await fetch(`${WORKER_URL}/tasks/@default/tasks`, {
+    await fetch('square-resonance-3fdb.mattjin70.workers.dev', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${oauthToken}`
+      },
       body: JSON.stringify({ title: input.value })
     });
     input.value = '';
     loadTasks();
   };
-
   inputLi.appendChild(input);
   inputLi.appendChild(addBtn);
   tasksList.appendChild(inputLi);
 
-  // Get existing tasks
-  const resp = await fetch(`${WORKER_URL}/tasks/@default/tasks`);
-  const data = await resp.json();
+  // Fetch tasks
+  const response = await fetch('square-resonance-3fdb.mattjin70.workers.dev', {
+    headers: { 'Authorization': `Bearer ${oauthToken}` }
+  });
+  const data = await response.json();
   const tasks = data.items || [];
 
   if (tasks.length === 0) {
@@ -199,16 +196,20 @@ async function loadTasks() {
     return;
   }
 
+  // Render tasks
   tasks.forEach(task => {
     const li = document.createElement('li');
 
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.onclick = async () => {
-      await fetch(`${WORKER_URL}/tasks/@default/tasks/${task.id}`, {
+      await fetch('square-resonance-3fdb.mattjin70.workers.dev', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed', title: task.title })
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${oauthToken}`
+        },
+        body: JSON.stringify({ id: task.id, status: 'completed' })
       });
       loadTasks();
     };
@@ -220,10 +221,15 @@ async function loadTasks() {
     const delBtn = document.createElement('button');
     delBtn.textContent = 'Delete';
     delBtn.onclick = async () => {
-      if (confirm(`Delete "${task.title}"?`)) {
-        await fetch(`${WORKER_URL}/tasks/@default/tasks/${task.id}`, { method: 'DELETE' });
-        loadTasks();
-      }
+      await fetch('square-resonance-3fdb.mattjin70.workers.dev', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${oauthToken}`
+        },
+        body: JSON.stringify({ id: task.id })
+      });
+      loadTasks();
     };
 
     li.appendChild(checkbox);
@@ -232,6 +238,9 @@ async function loadTasks() {
     tasksList.appendChild(li);
   });
 }
+
+// Initialize
+renderSignInButton();
 </script>
 
 </body>
