@@ -145,21 +145,15 @@ async function initializeGapiClient() {
     discoveryDocs: [DISCOVERY_DOC],
   });
 
-  // Try silent login first
-  handleAuth(loadTasks);
+  const tasksList = document.getElementById("tasks-list");
+  tasksList.innerHTML = "";
 
-  // If no token after 1 sec, show sign-in button
-  setTimeout(() => {
-    if (!gapi.client.getToken()) {
-      const tasksList = document.getElementById("tasks-list");
-      tasksList.innerHTML = "";
-      const btnLi = document.createElement("li");
-      const signInBtn = document.createElement("button");
-      signInBtn.innerText = "Sign in to load tasks";
-      signInBtn.onclick = () => handleAuth(loadTasks);
-      btnLi.appendChild(signInBtn);
-      tasksList.appendChild(btnLi);
-    }
+  // Always show sign-in button first
+  const signInBtn = document.createElement("button");
+  signInBtn.innerText = "Sign in to load tasks";
+  signInBtn.onclick = handleAuth;
+  tasksList.appendChild(signInBtn);
+}
   }, 1000);
 }
 
