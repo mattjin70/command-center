@@ -25,7 +25,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
     font-size: 1.5em;
     text-align: center;
     border-radius: 12px;
@@ -48,7 +48,6 @@
 
   .personal {
     background: #1a1a2e;
-    align-items: flex-start;
   }
 
   ul {
@@ -82,6 +81,7 @@
     border: none;
     cursor: pointer;
   }
+
 </style>
 </head>
 <body>
@@ -89,22 +89,36 @@
 <div class="grid">
 
   <!-- Work Tiles -->
-  <div class="tile"><a href="https://outlook.office.com/mail/" target="_blank">Outlook</a></div>
-  <div class="tile"><a href="https://app.slack.com/" target="_blank">Slack</a></div>
-  <div class="tile"><a href="https://www.icloud.com/reminders/" target="_blank">Reminders</a></div>
+  <div class="tile">
+    <a href="https://outlook.office.com/mail/" target="_blank">Outlook</a>
+  </div>
+
+  <div class="tile">
+    <a href="https://app.slack.com/" target="_blank">Slack</a>
+  </div>
+
+  <div class="tile">
+    <a href="https://www.icloud.com/reminders/" target="_blank">Reminders</a>
+  </div>
 
   <!-- Personal Tiles -->
-  <div class="tile personal" id="google-tasks-tile" style="padding:10px;">
+  <div class="tile personal" id="google-tasks-tile" style="align-items:flex-start; justify-content:flex-start; padding:10px;">
     <!-- Header clickable only -->
     <a href="https://tasks.google.com/" target="_blank">
       <h2 style="margin:0; padding:0; line-height:1.2;">Google Tasks</h2>
     </a>
-    <!-- Task input + list -->
+
+    <!-- Task input and list -->
     <ul id="tasks-list"></ul>
   </div>
 
-  <div class="tile personal"><a href="https://chat.openai.com/" target="_blank">ChatGPT</a></div>
-  <div class="tile personal"><a href="https://publish.obsidian.md/YourVaultName/" target="_blank">Obsidian</a></div>
+  <div class="tile personal">
+    <a href="https://chat.openai.com/" target="_blank">ChatGPT</a>
+  </div>
+
+  <div class="tile personal">
+    <a href="https://publish.obsidian.md/YourVaultName/" target="_blank">Obsidian</a>
+  </div>
 
 </div>
 
@@ -119,108 +133,118 @@ const SCOPES = 'https://www.googleapis.com/auth/tasks';
 
 let tokenClient;
 
-// 1️⃣ Load GAPI
-function gapiLoaded() {
-  gapi.load('client', initializeGapiClient);
+// Load GAPI
+gapi.load('client', async () => {
+  await gapi.client.init({
+    apiKey: API_KEY,
+    discoveryDocs: [DISCOVERY_DOC],
+  });
+
+  renderSignInButton();
+});
+
+// Always show Sign-In button first
+function renderSignInButton() {
+  const tasksList = document.getElementById('tasks-list');
+  tasksList.innerHTML = '';
+
+  const btn = document.createElement('button');
+  btn.textContent = 'Sign in to load tasks';
+  btn.onclick = handleAuth;
+
+  tasksList.appendChild(btn);
 }
 
-// 2️⃣ Initialize client & always show sign-in button
-async function initializeGapiClient() {
-  await gapi.client.init({ apiKey: API_KEY, discoveryDocs: [DISCOVERY_DOC] });
-  const tasksList = document.getElementById("tasks-list");
-  tasksList.innerHTML = "";
-
-  const signInBtn = document.createElement("button");
-  signInBtn.innerText = "Sign in to load tasks";
-  signInBtn.onclick = handleAuth;
-  tasksList.appendChild(signInBtn);
-
-  // Try to restore previous token
-  const cachedToken = localStorage.getItem('gTasksToken');
-  if(cachedToken) {
-    gapi.client.setToken({ access_token: cachedToken });
-    loadTasks();
-  }
-}
-
-// 3️⃣ OAuth login
+// Handle Auth
 function handleAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: SCOPES,
     prompt: 'consent',
-    callback: (response) => {
-      gapi.client.setToken(response);
-      localStorage.setItem('gTasksToken', response.access_token);
+    callback: async (resp) => {
+      gapi.client.setToken(resp);
       loadTasks();
     }
   });
+
   tokenClient.requestAccessToken();
 }
 
-// 4️⃣ CRUD functions
-function addTask(title) {
-  if (!title.trim()) return;
-  gapi.client.tasks.tasks.insert({ tasklist: '@default', resource: { title } })
-    .then(loadTasks)
-    .catch(err => console.error('Add error:', err));
-}
-
-function completeTask(task) {
-  gapi.client.tasks.tasks.update({
+// Load Tasks
+async function loadTasks() {
+  const response = await gapi.client.tasks.tasks.list({
     tasklist: '@default',
-    task: task.id,
-    resource: { id: task.id, title: task.title, notes: task.notes || '', status: 'completed' }
-  }).then(loadTasks)
-    .catch(err => console.error('Complete error:', err));
-}
+    showCompleted: false,
+    maxResults: 20
+  });
 
-function deleteTask(taskId) {
-  gapi.client.tasks.tasks.delete({ tasklist: '@default', task: taskId })
-    .then(loadTasks)
-    .catch(err => console.error('Delete error:', err));
-}
+  const tasks = response.result.items || [];
+  const tasksList = document.getElementById('tasks-list');
+  tasksList.innerHTML = '';
 
-// 5️⃣ Load tasks + input
-function loadTasks() {
-  gapi.client.tasks.tasks.list({ tasklist: '@default', showCompleted: false, maxResults: 50 })
-    .then(response => {
-      const tasks = response.result.items || [];
-      const tasksList = document.getElementById("tasks-list");
-      tasksList.innerHTML = "";
+  // Add Task Input
+  const inputLi = document.createElement('li');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'New task...';
 
-      // Input field
-      const inputLi = document.createElement("li");
-      const input = document.createElement("input");
-      input.type = "text";
-      input.placeholder = "New task…";
-      const addBtn = document.createElement("button");
-      addBtn.textContent = "Add";
-      addBtn.onclick = () => { addTask(input.value); input.value = ""; };
-      inputLi.appendChild(input); inputLi.appendChild(addBtn);
-      tasksList.appendChild(inputLi);
+  const addBtn = document.createElement('button');
+  addBtn.textContent = 'Add';
+  addBtn.onclick = async () => {
+    if (!input.value.trim()) return;
 
-      if(tasks.length === 0){
-        const li = document.createElement("li"); li.textContent="No active tasks 🎉"; tasksList.appendChild(li);
-        return;
-      }
-
-      tasks.forEach(task => {
-        const li = document.createElement("li");
-        const checkbox = document.createElement("input");
-        checkbox.type="checkbox"; checkbox.style.marginRight="8px";
-        checkbox.onclick = e => { e.stopPropagation(); completeTask(task); };
-        const span = document.createElement("span"); span.textContent = task.title;
-        const delBtn = document.createElement("button"); delBtn.textContent="Delete";
-        delBtn.onclick = e => { e.stopPropagation(); if(confirm(`Delete "${task.title}"?`)) deleteTask(task.id); };
-        li.appendChild(checkbox); li.appendChild(span); li.appendChild(delBtn);
-        tasksList.appendChild(li);
-      });
+    await gapi.client.tasks.tasks.insert({
+      tasklist: '@default',
+      resource: { title: input.value }
     });
-}
 
-// 6️⃣ Start
-gapiLoaded();
+    input.value = '';
+    loadTasks();
+  };
+
+  inputLi.appendChild(input);
+  inputLi.appendChild(addBtn);
+  tasksList.appendChild(inputLi);
+
+  // Existing Tasks
+  tasks.forEach(task => {
+    const li = document.createElement('li');
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.onclick = async () => {
+      await gapi.client.tasks.tasks.update({
+        tasklist: '@default',
+        task: task.id,
+        resource: {
+          id: task.id,
+          title: task.title,
+          status: 'completed'
+        }
+      });
+      loadTasks();
+    };
+
+    const span = document.createElement('span');
+    span.textContent = task.title;
+    span.style.marginLeft = '8px';
+
+    const delBtn = document.createElement('button');
+    delBtn.textContent = 'Delete';
+    delBtn.onclick = async () => {
+      await gapi.client.tasks.tasks.delete({
+        tasklist: '@default',
+        task: task.id
+      });
+      loadTasks();
+    };
+
+    li.appendChild(checkbox);
+    li.appendChild(span);
+    li.appendChild(delBtn);
+    tasksList.appendChild(li);
+  });
+}
 </script>
 
 </body>
