@@ -269,21 +269,32 @@ async function loadTasks() {
 
 // Initialize
 window.onload = () => {
+
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: SCOPES,
     callback: (resp) => {
-      if (resp.error) {
+
+      // If silent auth fails → show button
+      if (resp.error || !resp.access_token) {
         renderSignInButton();
         return;
       }
+
       oauthToken = resp.access_token;
       loadTasks();
     }
   });
 
-  // Try silent token refresh
+  // Try silent sign-in first
   tokenClient.requestAccessToken({ prompt: '' });
+
+  // Safety fallback in case Google returns nothing
+  setTimeout(() => {
+    if (!oauthToken) {
+      renderSignInButton();
+    }
+  }, 1000);
 };
 </script>
 
