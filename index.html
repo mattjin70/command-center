@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>Matt Command Center</title>
-
 <style>
   body {
     margin: 0;
@@ -32,7 +31,7 @@
     border-radius: 12px;
     cursor: pointer;
     transition: background 0.2s;
-    padding: 12px;
+    padding: 10px;
     overflow: hidden;
   }
 
@@ -40,55 +39,46 @@
     background: #222;
   }
 
-  .tile a {
+  a {
     color: white;
     text-decoration: none;
     width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
   }
 
   .personal {
     background: #1a1a2e;
   }
 
-  /* Google Tasks specific layout */
-  #google-tasks-tile {
-    justify-content: flex-start;
-    align-items: stretch;
-    text-align: left;
-  }
-
-  #google-tasks-tile h2 {
-    margin: 0 0 10px 0;
-    font-size: 1.2em;
-  }
-
-  #tasks-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    overflow-y: auto;
-    flex: 1;
+  ul {
+    margin: 4px 0 0 0;
+    padding-left: 0;
     font-size: 0.9em;
+    list-style: none;
+    width: 100%;
   }
 
-  #tasks-list li {
+  li {
     display: flex;
     align-items: center;
+    justify-content: flex-start;
     margin-bottom: 6px;
   }
 
-  #tasks-list input[type="text"] {
-    width: 70%;
-    padding: 4px;
+  input[type="text"] {
+    flex: 1;
+    padding: 4px 6px;
+    font-size: 0.9em;
+    border-radius: 4px;
+    border: none;
   }
 
-  #tasks-list button {
+  button {
+    padding: 4px 6px;
+    font-size: 0.8em;
     margin-left: 6px;
-    padding: 4px 8px;
+    border-radius: 4px;
+    border: none;
     cursor: pointer;
   }
 
@@ -111,15 +101,15 @@
     <a href="https://www.icloud.com/reminders/" target="_blank">Reminders</a>
   </div>
 
-  <!-- Google Tasks Tile -->
-  <div class="tile personal" id="google-tasks-tile">
-
-    <a href="https://tasks.google.com/" target="_blank" style="display:block; height:auto;">
-      <h2>Google Tasks</h2>
+  <!-- Personal Tiles -->
+  <div class="tile personal" id="google-tasks-tile" style="align-items:flex-start; justify-content:flex-start; padding:10px;">
+    <!-- Header clickable only -->
+    <a href="https://tasks.google.com/" target="_blank">
+      <h2 style="margin:0; padding:0; line-height:1.2;">Google Tasks</h2>
     </a>
 
+    <!-- Task input and list -->
     <ul id="tasks-list"></ul>
-
   </div>
 
   <div class="tile personal">
@@ -143,67 +133,61 @@ const SCOPES = 'https://www.googleapis.com/auth/tasks';
 
 let tokenClient;
 
+// 1️⃣ Load GAPI
 function gapiLoaded() {
   gapi.load('client', initializeGapiClient);
 }
 
+// 2️⃣ Initialize GAPI client
 async function initializeGapiClient() {
   await gapi.client.init({
     apiKey: API_KEY,
     discoveryDocs: [DISCOVERY_DOC],
   });
 
-  const tasksList = document.getElementById("tasks-list");
-  tasksList.innerHTML = "";
-
-  // Try silent auth first
+  // Try silent login first
   handleAuth(loadTasks);
 
-  // If silent auth fails, show button
+  // If no token after 1 sec, show sign-in button
   setTimeout(() => {
     if (!gapi.client.getToken()) {
+      const tasksList = document.getElementById("tasks-list");
+      tasksList.innerHTML = "";
+      const btnLi = document.createElement("li");
       const signInBtn = document.createElement("button");
       signInBtn.innerText = "Sign in to load tasks";
       signInBtn.onclick = () => handleAuth(loadTasks);
-
-      const li = document.createElement("li");
-      li.appendChild(signInBtn);
-      tasksList.appendChild(li);
+      btnLi.appendChild(signInBtn);
+      tasksList.appendChild(btnLi);
     }
   }, 1000);
 }
 
+// 3️⃣ OAuth login
 function handleAuth(callbackAfterAuth = null) {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: SCOPES,
-    prompt: '', // 🔥 allows silent refresh if already authorized
+    prompt: '', // silent if possible
     callback: (response) => {
       if (response.error) {
         console.error(response);
         return;
       }
-
       gapi.client.setToken(response);
-
-      if (callbackAfterAuth) {
-        callbackAfterAuth();
-      } else {
-        loadTasks();
-      }
+      if (callbackAfterAuth) callbackAfterAuth();
     },
   });
-
   tokenClient.requestAccessToken();
 }
 
+// 4️⃣ CRUD functions
 function addTask(title) {
   if (!title.trim()) return;
-
   gapi.client.tasks.tasks.insert({
     tasklist: '@default',
-    resource: { title: title }
-  }).then(loadTasks)
+    resource: { title }
+  }).then(() => loadTasks())
     .catch(err => console.error('Error adding task:', err));
 }
 
@@ -212,10 +196,12 @@ function completeTask(task) {
     tasklist: '@default',
     task: task.id,
     resource: {
-      ...task,
+      id: task.id,
+      title: task.title,
+      notes: task.notes || '',
       status: 'completed'
     }
-  }).then(loadTasks)
+  }).then(() => loadTasks())
     .catch(err => console.error('Error completing task:', err));
 }
 
@@ -223,36 +209,33 @@ function deleteTask(taskId) {
   gapi.client.tasks.tasks.delete({
     tasklist: '@default',
     task: taskId
-  }).then(loadTasks)
+  }).then(() => loadTasks())
     .catch(err => console.error('Error deleting task:', err));
 }
 
+// 5️⃣ Load tasks with input, checkboxes, delete
 function loadTasks() {
   gapi.client.tasks.tasks.list({
     tasklist: '@default',
     showCompleted: false,
-    maxResults: 20
+    maxResults: 50
   }).then(response => {
-
     const tasks = response.result.items || [];
     const tasksList = document.getElementById("tasks-list");
     tasksList.innerHTML = "";
 
-    // Input row
+    // Input field for new task
     const inputLi = document.createElement("li");
-
-    const taskInput = document.createElement("input");
-    taskInput.type = "text";
-    taskInput.placeholder = "New task…";
-
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "New task…";
     const addBtn = document.createElement("button");
-    addBtn.innerText = "Add";
+    addBtn.textContent = "Add";
     addBtn.onclick = () => {
-      addTask(taskInput.value);
-      taskInput.value = "";
+      addTask(input.value);
+      input.value = "";
     };
-
-    inputLi.appendChild(taskInput);
+    inputLi.appendChild(input);
     inputLi.appendChild(addBtn);
     tasksList.appendChild(inputLi);
 
@@ -263,37 +246,40 @@ function loadTasks() {
       return;
     }
 
+    // Add tasks
     tasks.forEach(task => {
       const li = document.createElement("li");
 
+      // Checkbox
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.style.marginRight = "8px";
-      checkbox.onclick = (e) => {
-        e.stopPropagation();
-        completeTask(task);
+      checkbox.onclick = e => { 
+        e.stopPropagation(); 
+        completeTask(task); 
       };
 
-      const title = document.createElement("span");
-      title.textContent = task.title;
+      // Task title
+      const span = document.createElement("span");
+      span.textContent = task.title;
 
+      // Delete button
       const delBtn = document.createElement("button");
       delBtn.textContent = "Delete";
-      delBtn.onclick = () => {
-        if (confirm(`Delete task "${task.title}"?`)) {
-          deleteTask(task.id);
-        }
+      delBtn.onclick = e => { 
+        e.stopPropagation(); 
+        if (confirm(`Delete "${task.title}"?`)) deleteTask(task.id); 
       };
 
       li.appendChild(checkbox);
-      li.appendChild(title);
+      li.appendChild(span);
       li.appendChild(delBtn);
       tasksList.appendChild(li);
     });
-
   });
 }
 
+// 6️⃣ Start
 gapiLoaded();
 </script>
 
