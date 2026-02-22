@@ -204,7 +204,7 @@ async function loadTasks() {
   }
 
   const data = await response.json();
-  const tasks = data.items || [];
+  const tasks = (data.items || []).filter(task => task.status !== 'completed');
 
   if (tasks.length === 0) {
     const li = document.createElement('li');
