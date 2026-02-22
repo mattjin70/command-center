@@ -81,7 +81,6 @@
     border: none;
     cursor: pointer;
   }
-
 </style>
 </head>
 <body>
@@ -126,27 +125,15 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <script>
-const CLIENT_ID = '903590667874-gln8c4dq5m9if43o6879fqofqqh3smiu.apps.googleusercontent.com';
-const API_KEY = 'AIzaSyDXZzSgAX-GeS1Hl3tAjT16GTGKCmvJSV0';
-const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/tasks/v1/rest';
-const SCOPES = 'https://www.googleapis.com/auth/tasks';
+const WORKER_URL = 'square-resonance-3fdb.mattjin70.workers.dev'; // <-- drop your deployed Worker URL here
 
-let tokenClient;
-
-// Wait for window to fully load
-window.onload = function () {
-  gapi.load('client', initializeGapiClient);
-};
-
-async function initializeGapiClient() {
-  await gapi.client.init({
-    apiKey: API_KEY,
-    discoveryDocs: [DISCOVERY_DOC],
-  });
-
+// Load GAPI
+gapi.load('client', async () => {
+  await gapi.client.init({}); // No API key in client now
   renderSignInButton();
-}
+});
 
+// Always show Sign-In button first
 function renderSignInButton() {
   const tasksList = document.getElementById('tasks-list');
   tasksList.innerHTML = '';
@@ -158,46 +145,40 @@ function renderSignInButton() {
   tasksList.appendChild(btn);
 }
 
+// Handle Auth via Google Identity Services
+let tokenClient;
 function handleAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID,
-    scope: SCOPES,
+    client_id: '903590667874-gln8c4dq5m9if43o6879fqofqqh3smiu.apps.googleusercontent.com', 
+    scope: 'https://www.googleapis.com/auth/tasks',
     prompt: 'consent',
     callback: async (resp) => {
-      gapi.client.setToken(resp);
       loadTasks();
     }
   });
-
   tokenClient.requestAccessToken();
 }
 
+// Load Tasks through Worker proxy
 async function loadTasks() {
-  const response = await gapi.client.tasks.tasks.list({
-    tasklist: '@default',
-    showCompleted: false,
-    maxResults: 20
-  });
-
-  const tasks = response.result.items || [];
   const tasksList = document.getElementById('tasks-list');
   tasksList.innerHTML = '';
 
+  // Task input
   const inputLi = document.createElement('li');
   const input = document.createElement('input');
   input.type = 'text';
-  input.placeholder = 'New task...';
+  input.placeholder = 'New task…';
 
   const addBtn = document.createElement('button');
   addBtn.textContent = 'Add';
   addBtn.onclick = async () => {
     if (!input.value.trim()) return;
-
-    await gapi.client.tasks.tasks.insert({
-      tasklist: '@default',
-      resource: { title: input.value }
+    await fetch(`${WORKER_URL}/tasks/@default/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: input.value })
     });
-
     input.value = '';
     loadTasks();
   };
@@ -206,20 +187,28 @@ async function loadTasks() {
   inputLi.appendChild(addBtn);
   tasksList.appendChild(inputLi);
 
+  // Get existing tasks
+  const resp = await fetch(`${WORKER_URL}/tasks/@default/tasks`);
+  const data = await resp.json();
+  const tasks = data.items || [];
+
+  if (tasks.length === 0) {
+    const li = document.createElement('li');
+    li.textContent = 'No active tasks 🎉';
+    tasksList.appendChild(li);
+    return;
+  }
+
   tasks.forEach(task => {
     const li = document.createElement('li');
 
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.onclick = async () => {
-      await gapi.client.tasks.tasks.update({
-        tasklist: '@default',
-        task: task.id,
-        resource: {
-          id: task.id,
-          title: task.title,
-          status: 'completed'
-        }
+      await fetch(`${WORKER_URL}/tasks/@default/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed', title: task.title })
       });
       loadTasks();
     };
@@ -231,11 +220,10 @@ async function loadTasks() {
     const delBtn = document.createElement('button');
     delBtn.textContent = 'Delete';
     delBtn.onclick = async () => {
-      await gapi.client.tasks.tasks.delete({
-        tasklist: '@default',
-        task: task.id
-      });
-      loadTasks();
+      if (confirm(`Delete "${task.title}"?`)) {
+        await fetch(`${WORKER_URL}/tasks/@default/tasks/${task.id}`, { method: 'DELETE' });
+        loadTasks();
+      }
     };
 
     li.appendChild(checkbox);
